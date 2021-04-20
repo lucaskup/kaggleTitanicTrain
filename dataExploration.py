@@ -7,45 +7,44 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 # %% [markdown]
-# # Lets load the data
-# Okay, we got our libraries loaded, now it is time to use pandas to read
-# the train.csv file that is located in the data folder.
+#  # Lets load the data
+#  Okay, we got our libraries loaded, now it is time to use pandas to read
+#  the train.csv file that is located in the data folder.
 #
-# Pandas read_csv command is able to read and parse csv files into dataframes,
-# you can see the dataframe as a matrix on steroids.
+#  Pandas read_csv command is able to read and parse csv files into dataframes,
+#  you can see the dataframe as a matrix on steroids.
 #
-# ## Data Dictionary
+#  ## Data Dictionary
 #
 #
-# | Variable | Definition | Key |
-# | :-: | :-: | :-: |
-# | survival | Survival | 0 = No, 1 = Yes|
-# | pclass | Ticket class | 1 = 1st, 2 = 2nd, 3 = 3rd|
-# | sex | Sex | |
-# | Age | Age in years | |
-# | sibsp | # of siblings / spouses aboard the Titanic | |
-# | parch | # of parents / children aboard the Titanic |
-# | ticket | Ticket number |
-# | fare | Passenger fare |
-# | cabin | Cabin number |
-# | embarked | Port of Embarkation | C = Cherbourg, Q = Queenstown, S = Southampton
+#  | Variable | Definition | Key |
+#  | :-: | :-: | :-: |
+#  | survival | Survival | 0 = No, 1 = Yes|
+#  | pclass | Ticket class | 1 = 1st, 2 = 2nd, 3 = 3rd|
+#  | sex | Sex | |
+#  | Age | Age in years | |
+#  | sibsp | # of siblings / spouses aboard the Titanic | |
+#  | parch | # of parents / children aboard the Titanic |
+#  | ticket | Ticket number |
+#  | fare | Passenger fare |
+#  | cabin | Cabin number |
+#  | embarked | Port of Embarkation | C = Cherbourg, Q = Queenstown, S = Southampton
 
 # %%
 dataset = pd.read_csv('data/train.csv')
 dataset.head()
 
-
 # %% [markdown]
-# # Some Terminology
-# In our *dataset* we distinguish between the variables that gives us information that we are going to use
-# in the estimation and we call them *features*, the variable we are trying to estimate is called target.
+#  # Some Terminology
+#  In our *dataset* we distinguish between the variables that gives us information that we are going to use
+#  in the estimation and we call them *features*, the variable we are trying to estimate is called target.
 #
-# In formal machine learning books, you will often see the dataset expressed as a set $D$ composed of
-# $n$ tuples $(\textbf{x},y)$ where $\textbf{x}$ is the feature vector (or predictors) and y is the target variable.
+#  In formal machine learning books, you will often see the dataset expressed as a set $D$ composed of
+#  $n$ tuples $(\textbf{x},y)$ where $\textbf{x}$ is the feature vector (or predictors) and y is the target variable.
 #
-# In this specific problem, **Survived** is the attribute that is our *target* value, all the other attributes from the
-# dataset are *features*. However we don't need (and in this case we should not) use all the avaliable attributes as features for
-# our model.
+#  In this specific problem, **Survived** is the attribute that is our *target* value, all the other attributes from the
+#  dataset are *features*. However we don't need (and in this case we should not) use all the avaliable attributes as features for
+#  our model.
 
 # %%
 dataset.drop(labels=['Name', 'Ticket'],
@@ -87,7 +86,7 @@ def drawPieChart(labels,
     # Pie chart, where the slices will be ordered and plotted counter-clockwise:
     _, ax1 = plt.subplots()
     ax1.set_title(title)
-    ax1.pie(count, labels=labels, autopct='%1.1f%%',
+    ax1.pie(count, labels=labels, autopct='%1.2f%%',
             shadow=True, startangle=90)
     # Equal aspect ratio ensures that pie is drawn as a circle.
     ax1.axis('equal')
@@ -135,6 +134,7 @@ labelsMale = list(
 
 drawPieChart(list(labelsFemale) + list(labelsMale),
              countFemale + countMale, columnName)
+
 
 # %%
 fig, ax = plt.subplots()
@@ -233,6 +233,7 @@ plt.ylabel('Nº People')
 plt.xlabel('Fare')
 plt.show()
 
+
 # %%
 fig, ax = plt.subplots()
 
@@ -271,19 +272,29 @@ ax.bar_label(p2)
 
 plt.show()
 
+# %% [markdown]
+# # Feature Engineering + DataVis
+# By combining feature engineering to datavis we can see if different age groups have different survival rates.
+# We compute the age group by doing an integer division of age by 10, this way we categorize 0-9 years passenger in group 0, 10-19 years in group 1, and so on.
+#
+# Then we use the **groupby** function in pandas (similar to the *SQL* groupby) and we aggregate values with the np.mean function;
+
 # %%
-
-
 datasetAges = dataset.dropna(axis=0, subset=['Age'])
-datasetAges['AgeGroup'] = datasetAges['Age'].apply(
-    lambda x: x // 10 if x // 10 <= 6 else 6)
+datasetAges = datasetAges.assign(AgeGroup=datasetAges['Age'].apply(
+    lambda x: x // 10 if x // 10 <= 6 else 6))
 ageGroup = datasetAges.groupby(['AgeGroup']).aggregate([np.mean, np.var])
+
+
+# %%
 
 fig, ax = plt.subplots()
 survivedRatio = ageGroup['Survived']['mean'].values
 ax.scatter(ageGroup.index.values,
            survivedRatio)
 ax.set_xticks(ageGroup.index.values)
+
+ax.set_title('Surviability by Age Group')
 ax.set_ylim((0, 1))
 ax.set_ylabel('Survival Rate')
 ax.set_xlabel('Age Group')
