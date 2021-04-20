@@ -97,9 +97,9 @@ def drawPieChart(labels,
 
 def getFrequenciesInCategoricalColumn(dataframe, columnName):
     labels = dataframe[columnName].unique()
-    #print(f'Antes: {labels}, {list(map(lambda x: x is np.nan,labels))}')
+    # print(f'Antes: {labels}, {list(map(lambda x: x is np.nan,labels))}')
     labels = sorted(labels, key=lambda x: '0' if x is np.nan else x)
-    print(labels)
+    # print(labels)
     count = list(map(lambda columnContent: sum(dataframe[columnName] == columnContent),
                      labels))
     return labels, count
@@ -256,14 +256,47 @@ ax.set_xticklabels(('Class 1', 'Class 2', 'Class 3'))
 ax.legend()
 
 # Label with label_type 'center' instead of the default 'edge'
+# To create the percentage labels whe use list comprehension
+# in a zipped list to compute the percentage of survivors
 labelsSurvived = [
     round((perc[0]/sum(perc))*100, 2) for perc in zip(survivedClass, notSurvivedClass)]
+# the percentage not survived is 100 - percentage survived
 labelsNotSurvived = list(map(lambda x: f'{100 - x:.2f}%', labelsSurvived))
+# converts to string
 labelsSurvived = list(map(lambda x: f'{x}%', labelsSurvived))
 
-labelsSurvived
 ax.bar_label(p1, labels=labelsSurvived, label_type='center')
 ax.bar_label(p2, labels=labelsNotSurvived, label_type='center')
 ax.bar_label(p2)
 
 plt.show()
+
+# %%
+
+
+datasetAges = dataset.dropna(axis=0, subset=['Age'])
+datasetAges['AgeGroup'] = datasetAges['Age'].apply(
+    lambda x: x // 10 if x // 10 <= 6 else 6)
+ageGroup = datasetAges.groupby(['AgeGroup']).aggregate([np.mean, np.var])
+
+fig, ax = plt.subplots()
+survivedRatio = ageGroup['Survived']['mean'].values
+ax.scatter(ageGroup.index.values,
+           survivedRatio)
+ax.set_xticks(ageGroup.index.values)
+ax.set_ylim((0, 1))
+ax.set_ylabel('Survival Rate')
+ax.set_xlabel('Age Group')
+
+ax.set_xticklabels(['0 - 10', '10 - 20', '20 - 30',
+                   '30 - 40', '40 - 50', '50 -60', '60+'])
+for i in range(len(survivedRatio)):
+    xyAnnotation = list(zip(ageGroup.index.values, survivedRatio))
+    xyAnnotationPlace = list(
+        map(lambda x: (x[0]+0.03, x[1]+0.03), xyAnnotation))
+    ax.annotate(f'{survivedRatio[i]*100:.2f}%',
+                xy=xyAnnotation[i],
+                xytext=xyAnnotationPlace[i])
+# (ageGroup['Survived']['mean'].values)
+
+fig.show()
