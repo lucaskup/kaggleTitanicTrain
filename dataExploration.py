@@ -2,9 +2,10 @@
 # To add a new markdown cell, type '# %% [markdown]'
 # %%
 # Import Libraries
+import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import numpy as np
+plt.style.use('seaborn-pastel')
 
 # %% [markdown]
 #  # Lets load the data
@@ -24,11 +25,11 @@ import numpy as np
 #  | sex | Sex | |
 #  | Age | Age in years | |
 #  | sibsp | # of siblings / spouses aboard the Titanic | |
-#  | parch | # of parents / children aboard the Titanic |
-#  | ticket | Ticket number |
-#  | fare | Passenger fare |
-#  | cabin | Cabin number |
-#  | embarked | Port of Embarkation | C = Cherbourg, Q = Queenstown, S = Southampton
+#  | parch | # of parents / children aboard the Titanic | |
+#  | ticket | Ticket number | |
+#  | fare | Passenger fare | |
+#  | cabin | Cabin number | |
+#  | embarked | Port of Embarkation | C = Cherbourg, Q = Queenstown, S = Southampton |
 
 # %%
 dataset = pd.read_csv('data/train.csv')
@@ -74,20 +75,27 @@ for column in dataset.columns.values:
     if hasMissingValues:
         print(f'Column: {column} has missing values')
 
+# %% [markdown]
+# # Some helper functions
+# Lets define two auxiliary functions to help us plot some pie charts
+# to see how are the how many observations on the dataset are categorized according to
+# the attributes ** Sex ** and **Embarked** as well as the ** Survived ** target.
 
 # %%
-dataset['Sex'].unique()
 
 
-# %%
 def drawPieChart(labels,
                  count,
                  title=' '):
+
     # Pie chart, where the slices will be ordered and plotted counter-clockwise:
     _, ax1 = plt.subplots()
     ax1.set_title(title)
-    ax1.pie(count, labels=labels, autopct='%1.2f%%',
-            shadow=True, startangle=90)
+    explode = [0.1 for i in labels]
+    ax1.pie(count, labels=labels,
+            autopct=lambda perc: f'{perc:.2f}% ({int(perc * sum(count)/100)})',
+            shadow=True, explode=explode,
+            pctdistance=0.7, startangle=90)
     # Equal aspect ratio ensures that pie is drawn as a circle.
     ax1.axis('equal')
 
@@ -99,19 +107,30 @@ def getFrequenciesInCategoricalColumn(dataframe, columnName):
     # print(f'Antes: {labels}, {list(map(lambda x: x is np.nan,labels))}')
     labels = sorted(labels, key=lambda x: '0' if x is np.nan else x)
     # print(labels)
-    count = list(map(lambda columnContent: sum(dataframe[columnName] == columnContent),
+
+    def sumatoryFunction(columnContent):
+        if columnContent is np.nan:
+            return sum(dataframe[columnName].isnull())
+        return sum(dataframe[columnName] == columnContent)
+
+    count = list(map(sumatoryFunction,
                      labels))
     return labels, count
 
 
+# %%
 columnName = 'Survived'
 labels, count = getFrequenciesInCategoricalColumn(dataset, columnName)
 drawPieChart(labels, count, columnName)
 
+
+# %%
 columnName = 'Sex'
 labels, count = getFrequenciesInCategoricalColumn(dataset, columnName)
 drawPieChart(labels, count, columnName)
 
+
+# %%
 columnName = 'Embarked'
 labels, count = getFrequenciesInCategoricalColumn(dataset, columnName)
 drawPieChart(labels, count, columnName)
@@ -137,6 +156,8 @@ drawPieChart(list(labelsFemale) + list(labelsMale),
 
 
 # %%
+# Does the gender influences on surviability?
+
 fig, ax = plt.subplots()
 
 width = 0.7
@@ -162,6 +183,11 @@ plt.show()
 
 
 # %%
+# Lets see the distributions between survived and not survived
+# we will use both boxplot and violin plot to see the pros and cons
+# in each of them.
+# TLDR: Violin shows the distr whereas boxplot only shows quartiles.
+
 labels = ['Survived', 'Not Survived']
 
 fig, (ax1, ax2) = plt.subplots(nrows=1, ncols=2, figsize=(18, 8))
@@ -197,7 +223,8 @@ plt.show()
 
 
 # %%
-# def pltHistogramCategorical
+# Lets look at some histograms to see if something  appears looking at the fare
+
 bins = np.linspace(0, 100, 10)
 
 # plt.hist(survivedSubset['Age'].dropna(axis=0).values,
@@ -235,6 +262,8 @@ plt.show()
 
 
 # %%
+# Lets see if there is a difference in surviability given different classes
+
 fig, ax = plt.subplots()
 
 width = 0.7
@@ -283,6 +312,8 @@ plt.show()
 datasetAges = dataset.dropna(axis=0, subset=['Age'])
 datasetAges = datasetAges.assign(AgeGroup=datasetAges['Age'].apply(
     lambda x: x // 10 if x // 10 <= 6 else 6))
+# There is a trick here, since Survived is a boolean attribute
+# the Survived mean is the same as Rate of Survival (do the math smarty pants!)
 ageGroup = datasetAges.groupby(['AgeGroup']).aggregate([np.mean, np.var])
 
 
@@ -303,6 +334,8 @@ ax.set_xticklabels(['0 - 10', '10 - 20', '20 - 30',
                    '30 - 40', '40 - 50', '50 -60', '60+'])
 for i in range(len(survivedRatio)):
     xyAnnotation = list(zip(ageGroup.index.values, survivedRatio))
+# The magic number 0.03 serves as a offset so the annotation wont
+# be in the same place of the dot in the graph
     xyAnnotationPlace = list(
         map(lambda x: (x[0]+0.03, x[1]+0.03), xyAnnotation))
     ax.annotate(f'{survivedRatio[i]*100:.2f}%',
