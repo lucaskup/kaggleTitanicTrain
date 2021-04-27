@@ -12,6 +12,9 @@ from sklearn.compose import ColumnTransformer
 
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.neighbors import KNeighborsClassifier
+from sklearn.naive_bayes import GaussianNB
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+from sklearn import svm
 
 from sklearn.neighbors import DistanceMetric
 
@@ -52,6 +55,8 @@ columnTransformer = ColumnTransformer(
 X = columnTransformer.fit_transform(X)
 
 # %%
+ensembleOfModels = []
+# %%
 
 # model = RandomForestClassifier(n_estimators=100,
 #                               criterion='gini')
@@ -65,7 +70,7 @@ gsCV.fit(X, Y)
 
 print(
     f'Best Random Forst Classifier:\n   Score > {gsCV.best_score_}\n   Params > {gsCV.best_params_}')
-
+ensembleOfModels.append(gsCV.best_estimator_)
 
 # cv_results = cross_validate(model, X, Y, cv=10,
 #                            scoring=['accuracy', 'precision', 'recall'])
@@ -83,7 +88,7 @@ gridParameters = [{'algorithm': ['brute'],
                    'n_neighbors': [3, 5, 10],
                    'metric_params': [{'V': covParam,
                                      'VI': invCovParam}]}]
-
+# sorted(VALID_METRICS['brute'])
 gsCV = GridSearchCV(KNeighborsClassifier(),
                     gridParameters,
                     cv=10)
@@ -92,5 +97,28 @@ gsCV.fit(X, Y)
 
 print(
     f'Best kNN Classifier:\n   Score > {gsCV.best_score_}\n   Params > {gsCV.best_params_}')
+ensembleOfModels.append(gsCV.best_estimator_)
+# %%
 
+model = LinearDiscriminantAnalysis()
+cv = cross_validate(model, X, Y, scoring='accuracy', cv=10)
+
+print(np.mean(cv['test_score']))
+
+ensembleOfModels.append(model)
+
+# %%
+
+gridParameters = {'C': [0.1, 1, 10, 100, 1000],
+                  'gamma': [1, 0.1, 0.01, 0.001, 0.0001],
+                  'kernel': ['rbf']}
+gsCV = GridSearchCV(svm.SVC(),
+                    gridParameters,
+                    cv=10)
+
+gsCV.fit(X, Y)
+
+print(
+    f'Best SVM:\n   Score > {gsCV.best_score_}\n   Params > {gsCV.best_params_}')
+ensembleOfModels.append(gsCV.best_estimator_)
 # %%
