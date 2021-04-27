@@ -30,30 +30,40 @@ dataset = pd.read_csv('dataCompetition/train.csv')
 dataset.head()
 
 # %%
-dataset.drop(labels=['Name', 'Ticket'],
-             axis=1,
-             inplace=True)
 
-dataset = dataset.assign(AgeGroup=dataset['Age'].apply(
-    lambda x: x // 10 if x // 10 <= 6 else 6))
-dataset = dataset.assign(hasFamily=(dataset['SibSp'] + dataset['Parch']).apply(
-    lambda x: 1 if x > 0 else 0))
-dataset = dataset.assign(hasCabin=dataset['Cabin'].apply(
-    lambda x: 0 if pd.isnull(x) else 1))
-dataset['Fare'] = dataset['Fare'].apply(
-    lambda x: 0 if pd.isnull(x) else x)
+
+def preprocessData(dataFrameToProcess, columnTransformer=None):
+    df = dataFrameToProcess.copy()
+    df.drop(labels=['Name', 'Ticket'],
+            axis=1,
+            inplace=True)
+
+    df = df.assign(AgeGroup=df['Age'].apply(
+        lambda x: x // 10 if x // 10 <= 6 else 6))
+    df = df.assign(hasFamily=(df['SibSp'] + df['Parch']).apply(
+        lambda x: 1 if x > 0 else 0))
+    df = df.assign(hasCabin=df['Cabin'].apply(
+        lambda x: 0 if pd.isnull(x) else 1))
+    df['Fare'] = df['Fare'].apply(
+        lambda x: 0 if pd.isnull(x) else x)
+    X = df[['Pclass', 'Sex', 'Fare', 'Embarked',
+            'AgeGroup', 'hasFamily', 'hasCabin']].values
+    Y = np.ravel(df['Survived'])
+    if columnTransformer is None:
+        columnTransformer = ColumnTransformer(
+            [('encoder', OneHotEncoder(drop='first'), [0, 1, 3, 4]),
+             ('minMaxScaler', MinMaxScaler(), [2])], remainder='passthrough')
+        X = columnTransformer.fit_transform(X)
+    else:
+        X = columnTransformer.transform(X)
+
+    return X, Y, columnTransformer
+
 
 # %%
-
-X = dataset[['Pclass', 'Sex', 'Fare', 'Embarked',
-             'AgeGroup', 'hasFamily', 'hasCabin']].values
-Y = np.ravel(dataset['Survived'])
+X, Y, ct = preprocessData(dataset)
 
 # %%
-columnTransformer = ColumnTransformer(
-    [('encoder', OneHotEncoder(drop='first'), [0, 1, 3, 4]),
-     ('minMaxScaler', MinMaxScaler(), [2])], remainder='passthrough')
-X = columnTransformer.fit_transform(X)
 
 # %%
 ensembleOfModels = []
