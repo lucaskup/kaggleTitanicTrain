@@ -12,9 +12,10 @@ from sklearn.compose import ColumnTransformer
 
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.neighbors import KNeighborsClassifier
-from sklearn.naive_bayes import GaussianNB
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn import svm
+from sklearn.neural_network import MLPClassifier
+
 
 from sklearn.neighbors import DistanceMetric
 
@@ -121,4 +122,21 @@ gsCV.fit(X, Y)
 print(
     f'Best SVM:\n   Score > {gsCV.best_score_}\n   Params > {gsCV.best_params_}')
 ensembleOfModels.append(gsCV.best_estimator_)
+# %%
+gridParameters = {'hidden_layer_sizes': [(5, 5), (10, 5), (15,)],
+                  'activation': ['logistic', 'relu'],
+                  'solver': ['adam'],
+                  'alpha': [0.0001, 0.05],
+                  'learning_rate': ['constant', 'adaptive'],
+                  }
+gsCV = GridSearchCV(MLPClassifier(max_iter=2500),
+                    gridParameters,
+                    cv=10)
+
+gsCV.fit(X, Y)
+
+print(
+    f'Best MLP:\n   Score > {gsCV.best_score_}\n   Params > {gsCV.best_params_}')
+ensembleOfModels.append(gsCV.best_estimator_)
+
 # %%
