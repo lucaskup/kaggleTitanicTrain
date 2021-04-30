@@ -26,36 +26,58 @@ from sklearn.model_selection import GridSearchCV
 # plt.style.use('seaborn-pastel')
 
 # %%
-dataset = pd.read_csv('dataCompetition/train.csv')
-dataset.head()
+
+datasetTrain = pd.read_csv('dataCompetition/train.csv')
+datasetTest = pd.read_csv('dataCompetition/test.csv')
+datasetTrain.head()
 
 # %%
 
 
-def preprocessData(dataFrameToProcess, columnTransformer=None):
-    df = dataFrameToProcess.copy()
+def preprocessData(df,
+                   columnTransformer=None,
+                   complementarySetForNull=None):
     df.drop(labels=['Name', 'Ticket'],
             axis=1,
             inplace=True)
+    if complementarySetForNull is not None:
+        # Age fillna with mean age
+        completeDF = pd.concat(
+            [df, complementarySetForNull]).reset_index(drop=True)
+        meanAge = completeDF['Age'].mean()
+        meanFare = completeDF['Fare'].mean()
+        completeDF = None
 
+        df['Age'] = df['Age'].fillna(meanAge)
+        complementarySetForNull['Age'] = complementarySetForNull['Age'].fillna(
+            meanAge)
+
+        df['Fare'] = df['Fare'].fillna(meanFare)
+        complementarySetForNull['Fare'] = complementarySetForNull['Fare'].fillna(
+            meanFare)
     df = df.assign(AgeGroup=df['Age'].apply(
         lambda x: x // 10 if x // 10 <= 6 else 6))
     df = df.assign(hasFamily=(df['SibSp'] + df['Parch']).apply(
         lambda x: 1 if x > 0 else 0))
+    df = df.assign(familySize=(df['SibSp'] + df['Parch']).apply(
+        lambda x: 0 if pd.isnull(x) else x))
     df = df.assign(hasCabin=df['Cabin'].apply(
         lambda x: 0 if pd.isnull(x) else 1))
+    df = df.assign(cabinLetter=df['Cabin'].apply(
+        lambda x: '.' if pd.isnull(x) else str(x)[0]))
     df['Fare'] = df['Fare'].apply(
         lambda x: 0 if pd.isnull(x) else x)
+    df = df.assign(farePerFamily=df['Fare']/(df['familySize']+1))
     X = df[['Pclass', 'Sex', 'Fare', 'Embarked',
-            'AgeGroup', 'hasFamily', 'hasCabin']].values
+            'AgeGroup', 'hasFamily', 'hasCabin', 'cabinLetter', 'farePerFamily']].values
     if 'Survived' in df.columns:
         Y = np.ravel(df['Survived'])
     else:
         Y = None
     if columnTransformer is None:
         columnTransformer = ColumnTransformer(
-            [('encoder', OneHotEncoder(drop='first'), [0, 1, 3, 4]),
-             ('minMaxScaler', MinMaxScaler(), [2])], remainder='passthrough')
+            [('encoder', OneHotEncoder(drop='first'), [0, 1, 3, 4, 7]),
+             ('minMaxScaler', MinMaxScaler(), [2, 8])], remainder='passthrough')
         X = columnTransformer.fit_transform(X)
     else:
         X = columnTransformer.transform(X)
@@ -64,21 +86,31 @@ def preprocessData(dataFrameToProcess, columnTransformer=None):
 
 
 # %%
-X, Y, ct = preprocessData(dataset)
+X, Y, ct = preprocessData(datasetTrain, complementarySetForNull=datasetTest)
 
+X_test, _, _ = preprocessData(datasetTest, columnTransformer=ct)
+passengerIdTest = datasetTest['PassengerId'].values.reshape(-1, 1)
+
+datasetTrain = None
+datasetTest = None
 ensembleOfModels = []
+# %%
+sampleIndexes = np.random.choice(len(Y), int(len(Y)*0.1), replace=False)
+
+X_sample = X[sampleIndexes]
+Y_sample = Y[sampleIndexes]
 # %%
 
 # model = RandomForestClassifier(n_estimators=100,
 #                               criterion='gini')
-gridParameters = {'n_estimators': [10, 50, 100],
+gridParameters = {'n_estimators': [10, 50, 100, 125],
                   'criterion': ['gini', 'entropy']}
 gsCV = GridSearchCV(RandomForestClassifier(),
                     gridParameters,
-                    cv=5,
+                    cv=3,
                     n_jobs=-1)
 
-gsCV.fit(X, Y)
+gsCV.fit(X_sample, Y_sample)
 
 print(
     f'Best Random Forst Classifier:\n   Score > {gsCV.best_score_}\n   Params > {gsCV.best_params_}')
@@ -94,7 +126,7 @@ ensembleOfModels.append(gsCV.best_estimator_)
 
 gridParameters = [{'algorithm': ['auto'],
                   'metric': ['minkowski'],
-                   'n_neighbors': [5, 10]}]  # ,
+                   'n_neighbors': [5, 10, 20]}]  # ,
 # {'algorithm': ['brute'],
 # 'metric': ['mahalanobis'],
 # 'n_neighbors': [5, 10],
@@ -106,7 +138,7 @@ gsCV = GridSearchCV(KNeighborsClassifier(),
                     cv=3,
                     n_jobs=-1)
 
-gsCV.fit(X, Y)
+gsCV.fit(X_sample, Y_sample)
 
 print(
     f'Best kNN Classifier:\n   Score > {gsCV.best_score_}\n   Params > {gsCV.best_params_}')
@@ -114,7 +146,7 @@ ensembleOfModels.append(gsCV.best_estimator_)
 # %%
 
 model = LinearDiscriminantAnalysis()
-cv = cross_validate(model, X, Y, scoring='accuracy', cv=5)
+cv = cross_validate(model, X_sample, Y_sample, scoring='accuracy', cv=5)
 
 print(np.mean(cv['test_score']))
 
@@ -122,7 +154,7 @@ ensembleOfModels.append(model)
 
 # %%
 
-gridParameters = {'C': [0.1, 1, 10],  # , 100, 1000],
+gridParameters = {'C': [0.1, 1, 10, 100, 1000],
                   'gamma': ['auto'],  # [1, 0.1, 0.01, 0.001, 0.0001],
                   'kernel': ['rbf']}
 gsCV = GridSearchCV(svm.SVC(),
@@ -130,13 +162,13 @@ gsCV = GridSearchCV(svm.SVC(),
                     cv=3,
                     n_jobs=-1)
 
-gsCV.fit(X, Y)
+gsCV.fit(X_sample, Y_sample)
 
 print(
     f'Best SVM:\n   Score > {gsCV.best_score_}\n   Params > {gsCV.best_params_}')
 ensembleOfModels.append(gsCV.best_estimator_)
 # %%
-gridParameters = {'hidden_layer_sizes': [(5, 5), (10, 5), (15, 10)],
+gridParameters = {'hidden_layer_sizes': [(5, 5), (10, 5), (10, 10), (15, 10), (15, 15)],
                   'activation': ['logistic', 'relu'],
                   'solver': ['adam'],
                   'alpha': [0.0001, 0.05],
@@ -147,7 +179,7 @@ gsCV = GridSearchCV(MLPClassifier(max_iter=2500),
                     cv=3,
                     n_jobs=-1)
 
-gsCV.fit(X, Y)
+gsCV.fit(X_sample, Y_sample)
 
 print(
     f'Best MLP:\n   Score > {gsCV.best_score_}\n   Params > {gsCV.best_params_}')
@@ -155,22 +187,21 @@ ensembleOfModels.append(gsCV.best_estimator_)
 
 # %%
 ensembleOfModels2 = list(map(lambda m: m.fit(X, Y), ensembleOfModels))
-datasetComp = pd.read_csv('dataCompetition/test.csv')
-
-X, Y, _ = preprocessData(datasetComp, columnTransformer=ct)
 
 
-predictions = list(map(lambda m: m.predict(X), ensembleOfModels2))
+predictions = list(map(lambda m: m.predict(X_test), ensembleOfModels2))
 
 predictionsEnsemble = predictions[0] + predictions[1] + \
     predictions[2] + predictions[3] + predictions[4]
 # predictionsEnsemble = predictionsEnsemble.apply(lambda x: 1 if x >= 3 else 0)
-dataForSubmission = pd.DataFrame(np.concatenate((datasetComp['PassengerId'].values.reshape(-1, 1),
+dataForSubmission = pd.DataFrame(np.concatenate((passengerIdTest,
                                                  predictionsEnsemble.reshape(-1, 1)), axis=1), columns=['PassengerId', 'Survived'])
 dataForSubmission['Survived'] = dataForSubmission['Survived'].apply(
     lambda x: 1 if x >= 3 else 0)
 
-dataForSubmission.to_csv('submission/TabularPlaygroundApr2021.csv',
+dataForSubmission.to_csv('submission/TabularPlaygroundApr2021_2.csv',
                          sep=',',
                          decimal='.',
                          index=False)
+
+# %%
