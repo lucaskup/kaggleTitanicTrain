@@ -21,22 +21,34 @@ from sklearn.neighbors import DistanceMetric
 
 from sklearn.model_selection import cross_validate
 from sklearn.model_selection import GridSearchCV
-# import matplotlib.pyplot as plt
-
-# plt.style.use('seaborn-pastel')
 
 # %%
+# Read the datasets
 
-datasetTrain = pd.read_csv('dataCompetition/train.csv')
-datasetTest = pd.read_csv('dataCompetition/test.csv')
+datasetTrain = pd.read_csv('data/train.csv')
+datasetTest = pd.read_csv('data/test.csv')
 datasetTrain.head()
 
 # %%
+# Defines the function that preprocess the data
 
 
-def preprocessData(df,
-                   columnTransformer=None,
-                   complementarySetForNull=None):
+def preprocessData(df: pd.DataFrame,
+                   columnTransformer: ColumnTransformer = None,
+                   complementarySetForNull: pd.DataFrame = None) -> (np.ndarray, np.ndarray, ColumnTransformer):
+    '''
+    Preprocess the data passed in, fill None values, encodes categorical features.
+
+    Parameters:
+        df (DataFrame): A pandas dataframe that contains the data to be preprocessed
+        columnTransformer (ColumnTransformer): optional column transformer to be used if null it creates a new ct
+        complementarySetForNull (Dataframe): An optional df (test) that is used for inputation of missing values.
+
+    Returns:
+        X (Numpy Array): The feature array already preprocessed
+        Y (Numpy Array): The target value
+        ct (Column Transformer): The column transformer used in the preprocess 
+    '''
     df.drop(labels=['Name', 'Ticket'],
             axis=1,
             inplace=True)
@@ -86,6 +98,9 @@ def preprocessData(df,
 
 
 # %%
+# Preprocess the train and the test set and frees the memory of regarding
+# the features of the dataset that were not used
+
 X, Y, ct = preprocessData(datasetTrain, complementarySetForNull=datasetTest)
 
 X_test, _, _ = preprocessData(datasetTest, columnTransformer=ct)
@@ -95,19 +110,24 @@ datasetTrain = None
 datasetTest = None
 ensembleOfModels = []
 # %%
-sampleIndexes = np.random.choice(len(Y), int(len(Y)*0.1), replace=False)
+# Since we dont have enough hardware to grid search through the entire data
+# we will take a i.i.d. sample of 10% of our dataset and will use that
+# to grid search and obtain the best hyperparameters for our models
 
+SAMPLE_RATIO = 1
+sampleIndexes = np.random.choice(len(Y),
+                                 int(len(Y)*SAMPLE_RATIO),
+                                 replace=False)
 X_sample = X[sampleIndexes]
 Y_sample = Y[sampleIndexes]
 # %%
+# Grid Search Through the Random Forest Classifier
 
-# model = RandomForestClassifier(n_estimators=100,
-#                               criterion='gini')
-gridParameters = {'n_estimators': [10, 50, 100, 125],
+gridParameters = {'n_estimators': [10, 50, 100, 200],
                   'criterion': ['gini', 'entropy']}
 gsCV = GridSearchCV(RandomForestClassifier(),
                     gridParameters,
-                    cv=3,
+                    cv=10,
                     n_jobs=-1)
 
 gsCV.fit(X_sample, Y_sample)
@@ -116,26 +136,28 @@ print(
     f'Best Random Forst Classifier:\n   Score > {gsCV.best_score_}\n   Params > {gsCV.best_params_}')
 ensembleOfModels.append(gsCV.best_estimator_)
 
-# cv_results = cross_validate(model, X, Y, cv=5,
-#                            scoring=['accuracy', 'precision', 'recall'])
-
-
 # %%
-# covParam = np.cov(X.astype(np.float32))
-# invCovParam = np.linalg.pinv(covParam)
+
+# Grid Search Through the kNN classifier
+# to use mahalonobis distance we need to pass the keyword parameters
+# V and VI
+# in case we want to know the valid distance metrics
+# we could run => sorted(VALID_METRICS['brute'])
+
+covParam = np.cov(X.astype(np.float32))
+invCovParam = np.linalg.pinv(covParam)
 
 gridParameters = [{'algorithm': ['auto'],
                   'metric': ['minkowski'],
-                   'n_neighbors': [5, 10, 20]}]  # ,
-# {'algorithm': ['brute'],
-# 'metric': ['mahalanobis'],
-# 'n_neighbors': [5, 10],
-# 'metric_params': [{'V': covParam,
-#                   'VI': invCovParam}]}]
-# sorted(VALID_METRICS['brute'])
+                   'n_neighbors': [5, 10, 20]},
+                  {'algorithm': ['brute'],
+                   'metric': ['mahalanobis'],
+                   'n_neighbors': [5, 10, 20],
+                   'metric_params': [{'V': covParam,
+                                      'VI': invCovParam}]}]
 gsCV = GridSearchCV(KNeighborsClassifier(),
                     gridParameters,
-                    cv=3,
+                    cv=10,
                     n_jobs=-1)
 
 gsCV.fit(X_sample, Y_sample)
@@ -144,22 +166,24 @@ print(
     f'Best kNN Classifier:\n   Score > {gsCV.best_score_}\n   Params > {gsCV.best_params_}')
 ensembleOfModels.append(gsCV.best_estimator_)
 # %%
+# The LDA models does not have much hyperparameters to tune
 
 model = LinearDiscriminantAnalysis()
-cv = cross_validate(model, X_sample, Y_sample, scoring='accuracy', cv=5)
+cv = cross_validate(model, X_sample, Y_sample, scoring='accuracy', cv=10)
 
 print(np.mean(cv['test_score']))
 
 ensembleOfModels.append(model)
 
 # %%
+# Lets grid search through the SVM classifier
 
 gridParameters = {'C': [0.1, 1, 10, 100, 1000],
                   'gamma': ['auto'],  # [1, 0.1, 0.01, 0.001, 0.0001],
                   'kernel': ['rbf']}
 gsCV = GridSearchCV(svm.SVC(),
                     gridParameters,
-                    cv=3,
+                    cv=10,
                     n_jobs=-1)
 
 gsCV.fit(X_sample, Y_sample)
@@ -168,15 +192,17 @@ print(
     f'Best SVM:\n   Score > {gsCV.best_score_}\n   Params > {gsCV.best_params_}')
 ensembleOfModels.append(gsCV.best_estimator_)
 # %%
+# Lets grid search through the MLP classifier
+
 gridParameters = {'hidden_layer_sizes': [(5, 5), (10, 5), (10, 10), (15, 10), (15, 15)],
                   'activation': ['logistic', 'relu'],
                   'solver': ['adam'],
-                  'alpha': [0.0001, 0.05],
+                  'alpha': [0.0001, 0.05, 0.005],
                   'learning_rate': ['constant', 'adaptive'],
                   }
 gsCV = GridSearchCV(MLPClassifier(max_iter=2500),
                     gridParameters,
-                    cv=3,
+                    cv=10,
                     n_jobs=-1)
 
 gsCV.fit(X_sample, Y_sample)
@@ -186,10 +212,11 @@ print(
 ensembleOfModels.append(gsCV.best_estimator_)
 
 # %%
-ensembleOfModels2 = list(map(lambda m: m.fit(X, Y), ensembleOfModels))
+# Prepare data for Kaggle Submission
+ensembleOfModels = list(map(lambda m: m.fit(X, Y), ensembleOfModels))
 
 
-predictions = list(map(lambda m: m.predict(X_test), ensembleOfModels2))
+predictions = list(map(lambda m: m.predict(X_test), ensembleOfModels))
 
 predictionsEnsemble = predictions[0] + predictions[1] + \
     predictions[2] + predictions[3] + predictions[4]
@@ -199,7 +226,9 @@ dataForSubmission = pd.DataFrame(np.concatenate((passengerIdTest,
 dataForSubmission['Survived'] = dataForSubmission['Survived'].apply(
     lambda x: 1 if x >= 3 else 0)
 
-dataForSubmission.to_csv('submission/TabularPlaygroundApr2021_2.csv',
+# %%
+# Creates the submission file
+dataForSubmission.to_csv('submission/TabularTitanic.csv',
                          sep=',',
                          decimal='.',
                          index=False)
