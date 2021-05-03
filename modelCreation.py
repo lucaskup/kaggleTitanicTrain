@@ -3,13 +3,9 @@
 # %% [markdown]
 # # First Notebook for Kaggle Competition
 #
-# This notebook is was used in two Kaggle competitions, in the classic Titanic competition
-# and in the April Tabular Series Competition. It did not achieve the best results, but got a
-# solid 0.77511 acc (people argue that the best achieveble acc in this competition is ~0.83)
-# an it scored 0.78449 in the april competition (the first place got 0.81).
+# This notebook achieves a score of 0.78449 in the April competition (the first place got 0.81). It far from the best but was fun to participate in the competition.
 #
-# TLDR: The datafile is read, we preprocess the data and input nan values using the mean,
-# onehotencode the categorical features and use an ensemble of LDA, Random Forest, kNN, SVM and MLP classifiers
+# TLDR: The data file is read, we preprocess the data and input nan values using the mean, one-hot encode the categorical features and use an ensemble of LDA, Random Forest, kNN, SVM, and MLP classifiers.
 
 # %%
 # Import Libraries
@@ -125,10 +121,9 @@ ensembleOfModels = []
 
 # %% [markdown]
 # # If you don't have enough hardware...
-# Sometimes you just dont have enough hardware available, it was my case in april's competition.
-# My solution was to do a grid search using just a sample of the training set. Usually you want to use
-# all the data, but if you are on a budget station (like me) a sample can do the job.
-# Use the SAMPLE_RATIO (0,1] below to control how much of the training sample you will use.
+# Sometimes you just don't have enough hardware available, it was my case in April's competition. My solution was to do a grid search using just a sample of the training set. Usually, you want to use all the data, but if you are on a budget station (like me) a sample can do the job. Use the SAMPLE_RATIO (0,1] below to control how much of the training sample you will use.
+#
+# Feel free to change to 1 if you have enough resources.
 
 # %%
 # Since we dont have enough hardware to grid search through the entire data
@@ -144,9 +139,7 @@ Y_sample = Y[sampleIndexes]
 
 # %% [markdown]
 # # Grid Search
-# Some models have hyperparameters, aka values you have to manually set and that are not subject of optimization during the training phase.
-# For those, the best practice is to search through some combination of parameters (trial and error) and select the parameters that create the
-# best model. In sklearn, we have the GridSearchCV that allows us to do a grid search in a k-fold cross-validation setup, we will do that.
+# Some models have hyperparameters, aka values that you have to manually set and that are not subject to optimization during the training phase. For those, the best practice is to search through some combination of parameters (trial and error) and select the parameters that create the best model. In sklearn, we have the GridSearchCV that allows us to do a grid search in a k-fold cross-validation setup, we will do that.
 
 # %%
 # Grid Search Through the Random Forest Classifier
@@ -247,11 +240,9 @@ ensembleOfModels.append(gsCV.best_estimator_)
 
 # %% [markdown]
 # # The prediction...
-# We now take the best model for each of the five algorithms we used (LDA, kNN, Random Forest, SVM) and we train them with selected
-# hyperparameters using the whole training set.
+# We now take the best model for each of the five algorithms we used (LDA, kNN, Random Forest, SVM) and we train them with selected hyperparameters using the whole training set.
 #
-# We use each of the five classifiers to make a prediction regarding the target variable. If three or more classifiers vote
-# on a specific autcome that is the autcome our ensemble classifier.
+# We use each of the five classifiers to predict the target variable. If three or more classifiers vote on a specific outcome that is the outcome of our ensemble classifier.
 
 # %%
 # Prepare data for Kaggle Submission
